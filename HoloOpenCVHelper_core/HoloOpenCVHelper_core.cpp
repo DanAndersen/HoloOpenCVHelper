@@ -26,6 +26,7 @@ extern "C" {
 		void setImage(uchar* imageData) {
 			delete image;
 			image = new cv::Mat(rows, cols, CV_8UC4, imageData, cols * 4);
+			cv::flip(*image, *image, 1);
 			cv::cvtColor(*image, gray, CV_BGRA2GRAY);
 		}
 
@@ -45,15 +46,19 @@ extern "C" {
 
 			bool success = false;
 
-			patternSize.width = chessX;
-			patternSize.height = chessY;
+			//pointBuf.clear();
+			//bool found = cv::findChessboardCorners(gray, patternSize, pointBuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
 
-			pointBuf.clear();
-			bool found = cv::findChessboardCorners(gray, patternSize, pointBuf, CV_CALIB_CB_ADAPTIVE_THRESH | CV_CALIB_CB_FAST_CHECK | CV_CALIB_CB_NORMALIZE_IMAGE);
+			//std::vector<cv::Point2f> pointBuf;
+			//cv::Size pSize(chessX, chessY);
+			pSize.width = chessX;
+			pSize.height = chessY;
+			bool found = cv::findChessboardCorners(gray, pSize, pointBuf, CV_CALIB_CB_FAST_CHECK);
 
 			if (found) {
 				cv::cornerSubPix(gray, pointBuf, cv::Size(11, 11), cv::Size(-1, -1), cv::TermCriteria(CV_TERMCRIT_EPS + CV_TERMCRIT_ITER, 30, 0.1));
 
+				
 				cv::Mat cameraMatrix(cv::Size(3, 3), CV_64F, 0.0);
 				cameraMatrix.at<double>(0, 0) = cam_mtx_fx;
 				cameraMatrix.at<double>(1, 1) = cam_mtx_fy;
@@ -69,16 +74,18 @@ extern "C" {
 				distCoeffs.at<double>(4) = dist_k3;
 
 				std::vector<cv::Point3f> obj;	// object points (valid for the latest chess dimensions)
-				obj.clear();
 				for (int i = 0; i < chessY; i++) {
 					for (int j = 0; j < chessX; j++) {
 						obj.push_back(cv::Point3f((float)j * chessSquareMeters, (float)i * chessSquareMeters, 0));
 					}
 				}
 
+				
 				cv::Mat rvec, tvec;
 				success = cv::solvePnP(obj, pointBuf, cameraMatrix, distCoeffs, rvec, tvec);
 
+
+				
 				if (success) {
 					got_valid_pose = true;
 					rvec_0 = rvec.at<double>(0);
@@ -92,6 +99,9 @@ extern "C" {
 					got_valid_pose = false;
 				}
 			}
+			else {
+				got_valid_pose = false;
+			}
 
 			return success;
 		}
@@ -102,11 +112,15 @@ extern "C" {
 				return NULL;
 			}
 
-			processedImage = cv::Mat(*image);
+			//processedImage = cv::Mat(*image);
 
 			if (got_valid_pose) {
-				image->copyTo(processedImage);
-				cv::drawChessboardCorners(processedImage, patternSize, pointBuf, true);
+				//image->copyTo(processedImage);
+				//cv::drawChessboardCorners(processedImage, patternSize, pointBuf, true);
+				//cv::cvtColor(*image, processedImage, CV_RGBA2BGRA);
+
+				processedImage = cv::Mat(*image);
+				cv::drawChessboardCorners(processedImage, pSize, pointBuf, true);
 			}
 			else {
 				cv::cvtColor(gray, processedImage, CV_GRAY2BGRA);
@@ -169,7 +183,7 @@ extern "C" {
 		double tvec_1;
 		double tvec_2;
 		std::vector<cv::Point2f> pointBuf;
-		cv::Size patternSize;
+		cv::Size pSize;
 	};
 
 	chessPoseController* ac;
